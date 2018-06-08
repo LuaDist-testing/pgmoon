@@ -37,7 +37,8 @@ do
   local overrides = {
     send = true,
     getreusedtimes = true,
-    sslhandshake = true
+    sslhandshake = true,
+    settimeout = true
   }
   luasocket = {
     tcp = function(...)
@@ -50,6 +51,12 @@ do
         end,
         getreusedtimes = function(self)
           return 0
+        end,
+        settimeout = function(self, t)
+          if t then
+            t = t / 1000
+          end
+          return self.sock:settimeout(t)
         end,
         sslhandshake = function(self, _, _, verify, _, opts)
           if opts == nil then
@@ -90,9 +97,9 @@ end
 return {
   new = function()
     if ngx and ngx.get_phase() ~= "init" then
-      return ngx.socket.tcp()
+      return ngx.socket.tcp(), "nginx"
     else
-      return luasocket.tcp()
+      return luasocket.tcp(), "luasocket"
     end
   end
 }

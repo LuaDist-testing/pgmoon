@@ -6,7 +6,7 @@ do
   local _obj_0 = require("bit")
   rshift, lshift, band = _obj_0.rshift, _obj_0.lshift, _obj_0.band
 end
-local VERSION = "1.6.0"
+local VERSION = "1.7.0"
 local _len
 _len = function(thing, t)
   if t == nil then
@@ -124,6 +124,7 @@ do
     NULL = {
       "NULL"
     },
+    PG_TYPES = PG_TYPES,
     user = "postgres",
     host = "127.0.0.1",
     port = "5432",
@@ -158,11 +159,38 @@ do
         local decode_json
         decode_json = require("pgmoon.json").decode_json
         return decode_array(val, decode_json)
+      end,
+      hstore = function(self, val, name)
+        local decode_hstore
+        decode_hstore = require("pgmoon.hstore").decode_hstore
+        return decode_hstore(val)
       end
     },
+    set_type_oid = function(self, oid, name)
+      if not (rawget(self, "PG_TYPES")) then
+        do
+          local _tbl_0 = { }
+          for k, v in pairs(self.PG_TYPES) do
+            _tbl_0[k] = v
+          end
+          self.PG_TYPES = _tbl_0
+        end
+      end
+      self.PG_TYPES[assert(tonumber(oid))] = name
+    end,
+    setup_hstore = function(self)
+      local res = unpack(self:query("SELECT oid FROM pg_type WHERE typname = 'hstore'"))
+      assert(res, "hstore oid not found")
+      return self:set_type_oid(tonumber(res.oid), "hstore")
+    end,
     connect = function(self)
-      self.sock = socket.new()
-      local ok, err = self.sock:connect(self.host, self.port)
+      local opts
+      if self.sock_type == "nginx" then
+        opts = {
+          pool = self.pool_name or tostring(self.host) .. ":" .. tostring(self.port) .. ":" .. tostring(self.database)
+        }
+      end
+      local ok, err = self.sock:connect(self.host, self.port, opts)
       if not (ok) then
         return nil, err
       end
@@ -189,6 +217,9 @@ do
         end
       end
       return true
+    end,
+    settimeout = function(self, ...)
+      return self.sock:settimeout(...)
     end,
     disconnect = function(self)
       local sock = self.sock
@@ -399,7 +430,7 @@ do
           local name = row_desc:match("[^%z]+", offset)
           offset = offset + #name + 1
           local data_type = self:decode_int(row_desc:sub(offset + 6, offset + 6 + 3))
-          data_type = PG_TYPES[data_type] or "string"
+          data_type = self.PG_TYPES[data_type] or "string"
           local format = self:decode_int(row_desc:sub(offset + 16, offset + 16 + 1))
           assert(0 == format, "don't know how to handle format")
           offset = offset + 18
@@ -633,6 +664,7 @@ do
   _base_0.__index = _base_0
   _class_0 = setmetatable({
     __init = function(self, opts)
+      self.sock, self.sock_type = socket.new()
       if opts then
         self.user = opts.user
         self.host = opts.host
@@ -642,6 +674,7 @@ do
         self.ssl = opts.ssl
         self.ssl_verify = opts.ssl_verify
         self.ssl_required = opts.ssl_required
+        self.pool_name = opts.pool
         self.luasec_opts = {
           key = opts.key,
           cert = opts.cert,

@@ -37,6 +37,17 @@ describe "pgmoon with server", ->
 
     assert.same true, res
 
+  it "settimeout()", ->
+    timeout_pg = Postgres {
+      host: "10.0.0.1"
+    }
+
+    timeout_pg\settimeout 1000
+
+    ok, err = timeout_pg\connect!
+    assert.is_nil ok
+    assert.equal "timeout", err
+
   it "tries to connect with SSL", ->
     -- we expect a server with ssl = off
     ssl_pg = Postgres {
@@ -288,6 +299,79 @@ describe "pgmoon with server", ->
     assert pg\query [[
       drop table types_test
     ]]
+
+  describe "hstore", ->
+    import encode_hstore, decode_hstore from require "pgmoon.hstore"
+
+    describe "encoding", ->
+      it "encodes hstore type", ->
+        t = { foo: "bar" }
+        enc = encode_hstore t
+        assert.same [['"foo"=>"bar"']], enc
+
+      it "encodes multiple pairs", ->
+        t = { foo: "bar", abc: "123" }
+        enc = encode_hstore t
+        results = {'\'"foo"=>"bar", "abc"=>"123"\'', '\'"abc"=>"123", "foo"=>"bar"\''}
+        assert(enc == results[1] or enc == results[2])
+
+      it "escapes", ->
+        t = { foo: "bar's" }
+        enc = encode_hstore t
+        assert.same [['"foo"=>"bar''s"']], enc
+
+    describe "decoding", ->
+      it "decodes hstore into a table", ->
+        s = '"foo"=>"bar"'
+        dec = decode_hstore s
+        assert.same {foo: 'bar'}, dec
+
+      it "decodes hstore with multiple parts", ->
+        s = '"foo"=>"bar", "1-a"=>"anything at all"'
+        assert.same {
+          foo: "bar"
+          "1-a": "anything at all"
+        }, decode_hstore s
+
+      it "decodes hstore with embedded quote", ->
+        assert.same {
+          hello: 'wo"rld'
+        }, decode_hstore [["hello"=>"wo\"rld"]]
+
+    describe "serializing", ->
+      before_each ->
+        assert pg\query [[
+          CREATE EXTENSION hstore;
+          create table hstore_test (
+            id serial primary key,
+            h hstore
+          )
+        ]]
+        pg\setup_hstore!
+
+      after_each ->
+        assert pg\query [[
+          DROP TABLE hstore_test;
+          DROP EXTENSION hstore;
+        ]]
+
+      it "serializes correctly", ->
+        assert pg\query "INSERT INTO hstore_test (h) VALUES (#{encode_hstore {foo: 'bar'}});"
+        res = assert pg\query "SELECT * FROM hstore_test;"
+
+        assert.same {foo: 'bar'}, res[1].h
+
+      it "serializes NULL as string", ->
+        assert pg\query "INSERT INTO hstore_test (h) VALUES (#{encode_hstore {foo: 'NULL'}});"
+        res = assert pg\query "SELECT * FROM hstore_test;"
+
+        assert.same 'NULL', res[1].h.foo
+
+      it "serializes multiple pairs", ->
+        assert pg\query "INSERT INTO hstore_test (h) VALUES (#{encode_hstore {abc: '123', foo: 'bar'}});"
+        res = assert pg\query "SELECT * FROM hstore_test;"
+
+        assert.same {abc: '123', foo: 'bar'}, res[1].h
 
   describe "json", ->
     import encode_json, decode_json from require "pgmoon.json"

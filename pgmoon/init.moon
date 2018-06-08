@@ -2,7 +2,7 @@ socket = require "pgmoon.socket"
 import insert from table
 import rshift, lshift, band from require "bit"
 
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 
 _len = (thing, t=type(thing)) ->
   switch t
@@ -101,6 +101,7 @@ tobool = (str) ->
 class Postgres
   convert_null: false
   NULL: {"NULL"}
+  :PG_TYPES
 
   user: "postgres"
   host: "127.0.0.1"
@@ -132,9 +133,26 @@ class Postgres
       import decode_array from require "pgmoon.arrays"
       import decode_json from require "pgmoon.json"
       decode_array val, decode_json
+
+    hstore: (val, name) =>
+      import decode_hstore from require "pgmoon.hstore"
+      decode_hstore val
   }
 
+  set_type_oid: (oid, name) =>
+    unless rawget(@, "PG_TYPES")
+      @PG_TYPES = {k,v for k,v in pairs @PG_TYPES}
+
+    @PG_TYPES[assert tonumber oid] = name
+
+  setup_hstore: =>
+    res = unpack @query "SELECT oid FROM pg_type WHERE typname = 'hstore'"
+    assert res, "hstore oid not found"
+    @set_type_oid tonumber(res.oid), "hstore"
+
   new: (opts) =>
+    @sock, @sock_type = socket.new!
+
     if opts
       @user = opts.user
       @host = opts.host
@@ -144,6 +162,7 @@ class Postgres
       @ssl = opts.ssl
       @ssl_verify = opts.ssl_verify
       @ssl_required = opts.ssl_required
+      @pool_name = opts.pool
       @luasec_opts = {
         key: opts.key
         cert: opts.cert
@@ -151,8 +170,12 @@ class Postgres
       }
 
   connect: =>
-    @sock = socket.new!
-    ok, err = @sock\connect @host, @port
+    opts = if @sock_type == "nginx"
+      {
+        pool: @pool_name or "#{@host}:#{@port}:#{@database}"
+      }
+
+    ok, err = @sock\connect @host, @port, opts
     return nil, err unless ok
 
     if @sock\getreusedtimes! == 0
@@ -170,6 +193,9 @@ class Postgres
       return nil, err unless success
 
     true
+
+  settimeout: (...) =>
+    @sock\settimeout ...
 
   disconnect: =>
     sock = @sock
@@ -366,7 +392,7 @@ class Postgres
 
       -- 4: object id of data type (6)
       data_type = @decode_int row_desc\sub offset + 6, offset + 6 + 3
-      data_type = PG_TYPES[data_type] or "string"
+      data_type = @PG_TYPES[data_type] or "string"
 
       -- 2: data type size (10)
       -- 4: type modifier (12)

@@ -59,6 +59,7 @@ of options. The table can have the following keys:
 * `"ssl"`: enable ssl
 * `"ssl_verify"`: verify server certificate
 * `"ssl_required"`: abort the connection if the server does not support SSL connections
+* `"pool"`: optional name of pool to use when using OpenResty cosocket (defaults to `"#{host}:#{port}:#{database}"`)
 
 Methods on the `Postgres` object returned by `new`:
 
@@ -277,6 +278,37 @@ local my_tbl = {hello = "world"}
 pg:query("insert into some_table (some_json_col) values(" .. encode_json(my_tbl) .. ")")
 ```
 
+## Handling hstore
+
+Because `hstore` is an extension type, a query is reuired to find out the type
+id before pgmoon can automatically decode it. Call the `setup_hstore` method on
+your connection object after connecting to set it up.
+
+```lua
+local pgmoon = require("pgmoon")
+local pg = pgmoon.new(auth)
+pg:connect()
+pg:setup_hstore()
+```
+
+Use `encode_hstore` to encode a Lua table into hstore syntax when updating and
+inserting:
+
+```lua
+local encode_hstore = require("pgmoon.hstore").encode_hstore
+local tbl = {foo = "bar"}
+pg:query("insert into some_table (hstore_col) values(" .. encode_hstore(tbl) .. ")")
+```
+
+You can manually decode a hstore value from string using the `decode_hstore`
+function. This is only required if you didn't call `setup_hstore`.
+
+```lua
+local decode_hstore = require("pgmoon.hstore").decode_hstore
+local res = pg:query("select * from some_table")
+local hstore_tbl = decode_hstore(res[1].hstore_col)
+```
+
 ## Converting `NULL`s
 
 By default `NULL`s in Postgres are converted to `nil`, meaning they aren't
@@ -307,6 +339,7 @@ Homepage: <http://leafo.net>
 
 # Changelog
 
+* 1.7.0 — 2016-09-21 — Add to opm, add support for openresty pool, better default pool, support for hstore (@edan)
 * 1.6.0 — 2016-07-21 — Add support for json and jsonb array decoding
 * 1.5.0 — 2016-07-12 — Add SSL support (@thibaultCha), Add UUID array type (@edan), Add support for notifications (@starius)
 * 1.4.0 — 2016-02-18 — Add support for decoding jsonb, add a json serializer (@thibaultCha)
