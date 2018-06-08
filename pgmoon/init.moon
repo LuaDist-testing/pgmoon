@@ -3,7 +3,7 @@ import tcp from require "pgmoon.socket"
 
 import rshift, lshift, band from require "bit"
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 
 _len = (thing, t=type(thing)) ->
   switch t
@@ -58,6 +58,7 @@ ERROR_TYPES = flipped {
 
 PG_TYPES = {
   [16]: "boolean"
+  [17]: "bytea"
 
   [20]: "number" -- int8
   [21]: "number" -- int2
@@ -66,10 +67,28 @@ PG_TYPES = {
   [701]: "number" -- float8
   [1700]: "number" -- numeric
 
+  -- arrays
+  [1000]: "array_boolean" -- bool array
+
+  [1005]: "array_number" -- int2 array
+  [1007]: "array_number" -- int4 array
+  [1016]: "array_number" -- int8 array
+  [1021]: "array_number" -- float4 array
+  [1022]: "array_number" -- float8 array
+  [1231]: "array_number" -- numeric array
+
+  [1009]: "array_string" -- text array
+  [1015]: "array_string" -- varchar array
+  [1002]: "array_string" -- char array
+  [1014]: "array_string" -- bpchar array
+
   [114]: "json"
 }
 
 NULL = "\0"
+
+tobool = (str) ->
+  str == "t"
 
 class Postgres
   convert_null: false
@@ -84,6 +103,21 @@ class Postgres
     json: (val, name) =>
       json = require "cjson"
       json.decode val
+
+    bytea: (val, name) =>
+      @decode_bytea val
+
+    array_boolean: (val, name) =>
+      import decode_array from require "pgmoon.arrays"
+      decode_array val, tobool
+
+    array_number: (val, name) =>
+      import decode_array from require "pgmoon.arrays"
+      decode_array val, tonumber
+
+    array_string: (val, name) =>
+      import decode_array from require "pgmoon.arrays"
+      decode_array val
   }
 
   new: (opts) =>
@@ -403,6 +437,17 @@ class Postgres
       else
         error "don't know how to encode #{bytes} byte(s)"
 
+  decode_bytea: (str) =>
+    if str\sub(1, 2) == '\\x'
+      str\sub(3)\gsub '..', (hex) ->
+        string.char tonumber hex, 16
+    else
+      str\gsub '\\(%d%d%d)', (oct) ->
+        string.char tonumber oct, 8
+
+  encode_bytea: (str) =>
+    string.format "E'\\\\x%s'", str\gsub '.', (byte) ->
+        string.format '%02x', string.byte byte
 
   escape_identifier: (ident) =>
     '"' ..  (tostring(ident)\gsub '"', '""') .. '"'
