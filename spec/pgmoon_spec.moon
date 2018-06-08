@@ -37,6 +37,33 @@ describe "pgmoon with server", ->
 
     assert.same true, res
 
+  it "tries to connect with SSL", ->
+    -- we expect a server with ssl = off
+    ssl_pg = Postgres {
+      database: DB
+      user: USER
+      host: HOST
+      ssl: true
+    }
+
+    finally ->
+      ssl_pg\disconnect!
+
+    assert ssl_pg\connect!
+
+  it "requires SSL", ->
+    ssl_pg = Postgres {
+      database: DB
+      user: USER
+      host: HOST
+      ssl: true
+      ssl_required: true
+    }
+
+    status, err = ssl_pg\connect!
+    assert.falsy status
+    assert.same [[the server does not support SSL connections]], err
+
   describe "with table", ->
     before_each ->
       assert pg\query [[
@@ -105,7 +132,7 @@ describe "pgmoon with server", ->
 
         assert.same { affected_rows: 10 }, res
         assert.same "blahblah",
-          unpack(pg\query "select name from hello_world limit 1").name
+          unpack((pg\query "select name from hello_world limit 1")).name
 
       it "delete a row", ->
         res = assert pg\query [[
@@ -114,7 +141,7 @@ describe "pgmoon with server", ->
 
         assert.same { affected_rows: 1 }, res
         assert.same nil,
-          unpack(pg\query "select * from hello_world where id = 1") or nil
+          unpack((pg\query "select * from hello_world where id = 1")) or nil
 
       it "truncate table", ->
         res = assert pg\query "truncate hello_world"
@@ -228,6 +255,7 @@ describe "pgmoon with server", ->
         bytes bytea default E'\\x68656c6c6f5c20776f726c6427',
         config json default '{"hello": "world", "arr": [1,2,3], "nested": {"foo": "bar"}}',
         bconfig jsonb default '{"hello": "world", "arr": [1,2,3], "nested": {"foo": "bar"}}',
+        uuids uuid[] default ARRAY['00000000-0000-0000-0000-000000000000']::uuid[],
 
         primary key (id)
       )
@@ -253,6 +281,7 @@ describe "pgmoon with server", ->
         bytes: 'hello\\ world\''
         config: { hello: "world", arr: {1,2,3}, nested: {foo: "bar"} }
         bconfig: { hello: "world", arr: {1,2,3}, nested: {foo: "bar"} }
+        uuids: {'00000000-0000-0000-0000-000000000000'}
       }
     }, res
 

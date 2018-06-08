@@ -2,7 +2,7 @@ socket = require "pgmoon.socket"
 import insert from table
 import rshift, lshift, band from require "bit"
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 _len = (thing, t=type(thing)) ->
   switch t
@@ -37,6 +37,7 @@ MSG_TYPE = flipped {
   ready_for_query: "Z"
   query: "Q"
   notice: "N"
+  notification: "A"
 
   password: "p"
 
@@ -53,6 +54,9 @@ ERROR_TYPES = flipped {
   message: "M"
   position: "P"
   detail: "D"
+  schema: "s"
+  table: "t"
+  constraint: "n"
 }
 
 PG_TYPES = {
@@ -80,6 +84,7 @@ PG_TYPES = {
   [1015]: "array_string" -- varchar array
   [1002]: "array_string" -- char array
   [1014]: "array_string" -- bpchar array
+  [2951]: "array_string" -- uuid array
 
   [114]: "json" -- json
   [3802]: "json" -- jsonb
@@ -97,6 +102,7 @@ class Postgres
   user: "postgres"
   host: "127.0.0.1"
   port: "5432"
+  ssl: false
 
   -- custom types supplementing PG_TYPES
   type_deserializers: {
@@ -127,6 +133,14 @@ class Postgres
       @database = opts.database
       @port = opts.port
       @password = opts.password
+      @ssl = opts.ssl
+      @ssl_verify = opts.ssl_verify
+      @ssl_required = opts.ssl_required
+      @luasec_opts = {
+        key: opts.key
+        cert: opts.cert
+        cafile: opts.cafile
+      }
 
   connect: =>
     @sock = socket.new!
@@ -134,8 +148,13 @@ class Postgres
     return nil, err unless ok
 
     if @sock\getreusedtimes! == 0
+      if @ssl
+        success, err = @send_ssl_message!
+        return nil, err unless success
+
       success, err = @send_startup_message!
       return nil, err unless success
+
       success, err = @auth!
       return nil, err unless success
 
@@ -213,10 +232,10 @@ class Postgres
         error "unknown response from auth"
 
   query: (q) =>
-    @send_message MSG_TYPE.query, {q, NULL}
+    @post q
     local row_desc, data_rows, command_complete, err_msg
 
-    local result
+    local result, notifications
     num_queries = 0
 
     while true
@@ -245,13 +264,27 @@ class Postgres
           row_desc, data_rows, command_complete = nil
         when MSG_TYPE.ready_for_query
           break
+        when MSG_TYPE.notification
+          notifications = {} unless notifications
+          insert notifications, @parse_notification(msg)
         -- when MSG_TYPE.notice
-        --   -- TODO: do something with notices
+        -- TODO: do something with notices
 
     if err_msg
-      return nil, @parse_error(err_msg), result, num_queries
+      return nil, @parse_error(err_msg), result, num_queries, notifications
 
-    result, num_queries
+    result, num_queries, notifications
+
+  post: (q) =>
+    @send_message MSG_TYPE.query, {q, NULL}
+
+  wait_for_notification: =>
+    while true
+      t, msg = @receive_message!
+      return nil, msg unless t
+      switch t
+        when MSG_TYPE.notification
+          return @parse_notification(msg)
 
   format_query_result: (row_desc, data_rows, command_complete) =>
     local command, affected_rows
@@ -281,6 +314,8 @@ class Postgres
   parse_error: (err_msg) =>
     local severity, message, detail, position
 
+    error_data = {}
+
     offset = 1
     while offset <= #err_msg
       t = err_msg\sub offset, offset
@@ -288,6 +323,9 @@ class Postgres
       break unless str
 
       offset += 2 + #str
+
+      if field = ERROR_TYPES[t]
+        error_data[field] = str
 
       switch t
         when ERROR_TYPES.severity
@@ -307,7 +345,7 @@ class Postgres
     if detail
       msg = "#{msg}\n#{detail}"
 
-    msg
+    msg, error_data
 
   parse_row_desc: (row_desc) =>
     num_fields = @decode_int row_desc\sub(1,2)
@@ -372,6 +410,22 @@ class Postgres
 
     out
 
+  parse_notification: (msg) =>
+    pid = @decode_int msg\sub 1, 4
+    offset = 4
+
+    channel, payload = msg\match "^([^%z]+)%z([^%z]*)%z$", offset + 1
+
+    unless channel
+      error "parse_notification: failed to parse notification"
+
+    {
+      operation: "notification"
+      pid: pid
+      channel: channel
+      payload: payload
+    }
+
   wait_until_ready: =>
     while true
       t, msg = @receive_message!
@@ -419,6 +473,24 @@ class Postgres
       @encode_int _len(data) + 4
       data
     }
+
+  send_ssl_message: =>
+    success, err = @sock\send {
+      @encode_int 8,
+      @encode_int 80877103
+    }
+    return nil, err unless success
+
+    t, err = @sock\receive 1
+    return nil, err unless t
+
+    if t == MSG_TYPE.status
+      @sock\sslhandshake false, nil, @ssl_verify, nil, @luasec_opts
+    elseif t == MSG_TYPE.error or @ssl_required
+      @disconnect!
+      nil, "the server does not support SSL connections"
+    else
+      true -- no SSL support, but not required by client
 
   send_message: (t, data, len=nil) =>
     len = _len data if len == nil
