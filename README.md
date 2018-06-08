@@ -1,5 +1,7 @@
 # pgmoon
 
+[![Build Status](https://travis-ci.org/leafo/pgmoon.svg?branch=master)](https://travis-ci.org/leafo/pgmoon)
+
 pgmoon is a PostgreSQL client library written in pure Lua (MoonScript).
 
 pgmoon was originally designed for use in [OpenResty][5] to take advantage of the
@@ -258,6 +260,7 @@ Homepage: <http://leafo.net>
 
 # Changelog
 
+* 1.3.0 — 2016-02-11 — Fix bug parsing a string that looked like a number failed, add support for using in ngx when in init context (@thibaultCha), add cleartext password auth, fix warning with md5 auth
 * 1.2.0 — 2015-07-10 — Add support for PostgreSQL Arrays
 * 1.1.1 — 2014-08-12 — Fix a bug with md5 auth
 * 1.1.0 — 2014-05-21 — Add support for multiple queries in one call

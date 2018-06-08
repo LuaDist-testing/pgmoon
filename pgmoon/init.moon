@@ -1,9 +1,8 @@
+socket = require "pgmoon.socket"
 import insert from table
-import tcp from require "pgmoon.socket"
-
 import rshift, lshift, band from require "bit"
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 _len = (thing, t=type(thing)) ->
   switch t
@@ -129,7 +128,7 @@ class Postgres
       @password = opts.password
 
   connect: =>
-    @sock = tcp!
+    @sock = socket.new!
     ok, err = @sock\connect @host, @port
     return nil, err unless ok
 
@@ -170,10 +169,22 @@ class Postgres
     switch auth_type
       when 0 -- trust
         true
-      when 5 -- md5 auth
+      when 3 -- cleartext password
+        @cleartext_auth msg
+      when 5 -- md5 password
         @md5_auth msg
       else
         error "don't know how to auth: #{auth_type}"
+
+  cleartext_auth: (msg) =>
+    assert @password, "missing password, required for connect"
+
+    @send_message MSG_TYPE.password, {
+      @password
+      NULL
+    }
+
+    @check_auth!
 
   md5_auth: (msg) =>
     import md5 from require "pgmoon.crypto"
@@ -183,8 +194,12 @@ class Postgres
     @send_message MSG_TYPE.password, {
       "md5"
       md5 md5(@password .. @user) .. salt
+      NULL
     }
 
+    @check_auth!
+
+  check_auth: =>
     t, msg = @receive_message!
     return nil, msg unless t
 
@@ -194,7 +209,7 @@ class Postgres
       when MSG_TYPE.auth
         true
       else
-        error "unknown response from md5 auth: #{auth_type}"
+        error "unknown response from auth"
 
   query: (q) =>
     @send_message MSG_TYPE.query, {q, NULL}
