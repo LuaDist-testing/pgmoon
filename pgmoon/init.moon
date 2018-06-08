@@ -3,7 +3,7 @@ import tcp from require "pgmoon.socket"
 
 import rshift, lshift, band from require "bit"
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 _len = (thing, t=type(thing)) ->
   switch t
@@ -148,7 +148,7 @@ class Postgres
 
     @send_message MSG_TYPE.password, {
       "md5"
-      md5 md5(@user .. @password) .. salt
+      md5 md5(@password .. @user) .. salt
     }
 
     t, msg = @receive_message!

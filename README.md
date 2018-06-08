@@ -13,21 +13,21 @@ environment and on the command line (eg. tests) in web frameworks like [Lapis][3
 ## Install
 
 ```bash
-$ luarocks install https://raw.githubusercontent.com/leafo/pgmoon/master/pgmoon-dev-1.rockspec
+$ luarocks install pgmoon
 ```
 
 ## Example
 
 ```lua
 local pgmoon = require("pgmoon")
-local pg = pgmoon.new()
-
-assert(pg:connect({
+local pg = pgmoon.new({
   host = "127.0.0.1",
   port = "5432",
   database = "mydb",
   user = "postgres"
-}))
+})
+
+assert(pg:connect())
 
 local res = assert(pg:query("select * from users where username = " ..
   pg:escape_literal("leafo")))
