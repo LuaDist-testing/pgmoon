@@ -7,7 +7,7 @@ do
   rshift, lshift, band = _obj_0.rshift, _obj_0.lshift, _obj_0.band
 end
 local unpack = table.unpack or unpack
-local VERSION = "1.8.0"
+local VERSION = "1.9.0"
 local _len
 _len = function(thing, t)
   if t == nil then
@@ -188,7 +188,7 @@ do
       local opts
       if self.sock_type == "nginx" then
         opts = {
-          pool = self.pool_name or tostring(self.host) .. ":" .. tostring(self.port) .. ":" .. tostring(self.database)
+          pool = self.pool_name or tostring(self.host) .. ":" .. tostring(self.port) .. ":" .. tostring(self.database) .. ":" .. tostring(self.user)
         }
       end
       local ok, err = self.sock:connect(self.host, self.port, opts)
@@ -555,6 +555,10 @@ do
         NULL,
         self.database,
         NULL,
+        "application_name",
+        NULL,
+        "pgmoon",
+        NULL,
         NULL
       }
       return self.sock:send({
@@ -589,9 +593,6 @@ do
       end
     end,
     send_message = function(self, t, data, len)
-      if len == nil then
-        len = nil
-      end
       if len == nil then
         len = _len(data)
       end

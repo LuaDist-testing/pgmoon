@@ -4,7 +4,7 @@ import rshift, lshift, band from require "bit"
 
 unpack = table.unpack or unpack
 
-VERSION = "1.8.0"
+VERSION = "1.9.0"
 
 _len = (thing, t=type(thing)) ->
   switch t
@@ -174,7 +174,7 @@ class Postgres
   connect: =>
     opts = if @sock_type == "nginx"
       {
-        pool: @pool_name or "#{@host}:#{@port}:#{@database}"
+        pool: @pool_name or "#{@host}:#{@port}:#{@database}:#{@user}"
       }
 
     ok, err = @sock\connect @host, @port, opts
@@ -394,6 +394,7 @@ class Postgres
 
       -- 4: object id of data type (6)
       data_type = @decode_int row_desc\sub offset + 6, offset + 6 + 3
+
       data_type = @PG_TYPES[data_type] or "string"
 
       -- 2: data type size (10)
@@ -502,6 +503,8 @@ class Postgres
       @user, NULL
       "database", NULL
       @database, NULL
+      "application_name", NULL
+      "pgmoon", NULL
       NULL
     }
 
@@ -531,7 +534,7 @@ class Postgres
     else
       true -- no SSL support, but not required by client
 
-  send_message: (t, data, len=nil) =>
+  send_message: (t, data, len) =>
     len = _len data if len == nil
     len += 4 -- includes the length of the length integer
 
