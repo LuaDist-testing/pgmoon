@@ -6,7 +6,8 @@ do
   local _obj_0 = require("bit")
   rshift, lshift, band = _obj_0.rshift, _obj_0.lshift, _obj_0.band
 end
-local VERSION = "1.7.0"
+local unpack = table.unpack or unpack
+local VERSION = "1.8.0"
 local _len
 _len = function(thing, t)
   if t == nil then
@@ -575,7 +576,11 @@ do
         return nil, err
       end
       if t == MSG_TYPE.status then
-        return self.sock:sslhandshake(false, nil, self.ssl_verify, nil, self.luasec_opts)
+        if self.sock_type == "nginx" then
+          return self.sock:sslhandshake(false, nil, self.ssl_verify)
+        else
+          return self.sock:sslhandshake(self.ssl_verify, self.luasec_opts)
+        end
       elseif t == MSG_TYPE.error or self.ssl_required then
         self:disconnect()
         return nil, "the server does not support SSL connections"
@@ -664,7 +669,7 @@ do
   _base_0.__index = _base_0
   _class_0 = setmetatable({
     __init = function(self, opts)
-      self.sock, self.sock_type = socket.new()
+      self.sock, self.sock_type = socket.new(opts and opts.socket_type)
       if opts then
         self.user = opts.user
         self.host = opts.host

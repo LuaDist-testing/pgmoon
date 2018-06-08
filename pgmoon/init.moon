@@ -2,7 +2,9 @@ socket = require "pgmoon.socket"
 import insert from table
 import rshift, lshift, band from require "bit"
 
-VERSION = "1.7.0"
+unpack = table.unpack or unpack
+
+VERSION = "1.8.0"
 
 _len = (thing, t=type(thing)) ->
   switch t
@@ -151,7 +153,7 @@ class Postgres
     @set_type_oid tonumber(res.oid), "hstore"
 
   new: (opts) =>
-    @sock, @sock_type = socket.new!
+    @sock, @sock_type = socket.new opts and opts.socket_type
 
     if opts
       @user = opts.user
@@ -519,7 +521,10 @@ class Postgres
     return nil, err unless t
 
     if t == MSG_TYPE.status
-      @sock\sslhandshake false, nil, @ssl_verify, nil, @luasec_opts
+      if @sock_type == "nginx"
+        @sock\sslhandshake false, nil, @ssl_verify
+      else
+        @sock\sslhandshake @ssl_verify, @luasec_opts
     elseif t == MSG_TYPE.error or @ssl_required
       @disconnect!
       nil, "the server does not support SSL connections"

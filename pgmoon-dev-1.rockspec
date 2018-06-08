@@ -24,10 +24,12 @@ build = {
   modules = {
     ["pgmoon"] = "pgmoon/init.lua",
     ["pgmoon.arrays"] = "pgmoon/arrays.lua",
+    ["pgmoon.cqueues"] = "pgmoon/cqueues.lua",
     ["pgmoon.crypto"] = "pgmoon/crypto.lua",
     ["pgmoon.hstore"] = "pgmoon/hstore.lua",
     ["pgmoon.json"] = "pgmoon/json.lua",
     ["pgmoon.socket"] = "pgmoon/socket.lua",
+    ["pgmoon.util"] = "pgmoon/util.lua",
   },
 }
 

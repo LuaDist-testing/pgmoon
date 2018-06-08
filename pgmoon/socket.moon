@@ -1,19 +1,6 @@
 
 luasocket = do
-  -- make luasockets send behave like openresty's
-  __flatten = (t, buffer) ->
-    switch type(t)
-      when "string"
-        buffer[#buffer + 1] = t
-      when "table"
-        for thing in *t
-          __flatten thing, buffer
-
-
-  _flatten = (t) ->
-    buffer = {}
-    __flatten t, buffer
-    table.concat buffer
+  import flatten from require "pgmoon.util"
 
   proxy_mt = {
     __index: (key) =>
@@ -41,13 +28,13 @@ luasocket = do
       sock = socket.tcp ...
       proxy = setmetatable {
         :sock
-        send: (...) => @sock\send _flatten ...
+        send: (...) => @sock\send flatten ...
         getreusedtimes: => 0
         settimeout: (t) =>
           if t
             t = t/1000
           @sock\settimeout t
-        sslhandshake: (_, _, verify, _, opts={}) =>
+        sslhandshake: (verify, opts={}) =>
           ssl = require "ssl"
           params = {
             mode: "client"
@@ -78,12 +65,25 @@ luasocket = do
   }
 
 {
-  new: ->
-    -- Fallback to LuaSocket is only required when pgmoon
-    -- runs in plain Lua, or in the init_by_lua context.
-    if ngx and ngx.get_phase! != "init"
-      ngx.socket.tcp!, "nginx"
-    else
-      luasocket.tcp!, "luasocket"
+  new: (socket_type) ->
+    if socket_type == nil
+      -- choose the default socket, try to use nginx, otherwise default to
+      -- luasocket
+      socket_type = if ngx and ngx.get_phase! != "init"
+        "nginx"
+      else
+        "luasocket"
+
+    socket = switch socket_type
+      when "nginx"
+        ngx.socket.tcp!
+      when "luasocket"
+        luasocket.tcp!
+      when "cqueues"
+        require("pgmoon.cqueues").CqueuesSocket!
+      else
+        error "unknown socket type: #{socket_type}"
+
+    socket, socket_type
 }
 
