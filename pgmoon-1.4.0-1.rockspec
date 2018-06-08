@@ -1,17 +1,17 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "pgmoon"
-version = "1.3.0-1"
+version = "1.4.0-1"
 
 -- LuaDist source
 source = {
-  tag = "1.3.0-1",
+  tag = "1.4.0-1",
   url = "git://github.com/LuaDist-testing/pgmoon.git"
 }
 -- Original source
 -- source = {
 --   url = "git://github.com/leafo/pgmoon.git",
--- 	branch = "v1.3.0"
+--   branch = "v1.4.0"
 -- }
 
 description = {
@@ -35,5 +35,6 @@ build = {
     ["pgmoon.arrays"] = "pgmoon/arrays.lua",
     ["pgmoon.crypto"] = "pgmoon/crypto.lua",
     ["pgmoon.socket"] = "pgmoon/socket.lua",
+    ["pgmoon.json"] = "pgmoon/json.lua"
   },
 }

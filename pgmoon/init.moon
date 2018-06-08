@@ -2,7 +2,7 @@ socket = require "pgmoon.socket"
 import insert from table
 import rshift, lshift, band from require "bit"
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 _len = (thing, t=type(thing)) ->
   switch t
@@ -81,7 +81,8 @@ PG_TYPES = {
   [1002]: "array_string" -- char array
   [1014]: "array_string" -- bpchar array
 
-  [114]: "json"
+  [114]: "json" -- json
+  [3802]: "json" -- jsonb
 }
 
 NULL = "\0"
@@ -100,8 +101,8 @@ class Postgres
   -- custom types supplementing PG_TYPES
   type_deserializers: {
     json: (val, name) =>
-      json = require "cjson"
-      json.decode val
+      import decode_json from require "pgmoon.json"
+      decode_json val
 
     bytea: (val, name) =>
       @decode_bytea val

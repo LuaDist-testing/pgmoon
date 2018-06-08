@@ -204,9 +204,10 @@ convert any Postgres types into the appropriate Lua type.
 
 All integer, floating point, and numeric types are converted into Lua's number
 type. The boolean type is converted into a Lua boolean. The JSON type is
-decoded into a Lua table using Lua CJSON.
+decoded into a Lua table using Lua CJSON. Lua tables can be encoded to JSON as
+described below.
 
-Any array types are automatically converted to Lua arary tables. If you need to
+Any array types are automatically converted to Lua array tables. If you need to
 encode an array in Lua to Postgres' array syntax you can use the
 `pgmoon.arrays` module. See below.
 
@@ -227,7 +228,24 @@ pg:connect()
 
 local encode_array = require("pgmoon.arrays").encode_array
 local my_array = {1,2,3,4,5}
-db.query("insert into some_table (some_arr_col) values(" .. encode_array(my_array) .. ")")
+pg:query("insert into some_table (some_arr_col) values(" .. encode_array(my_array) .. ")")
+```
+
+## Handling JSON
+
+`json` and `jsonb` types are automatically decoded when they are returned from
+a query.
+
+Use `encode_json` to encode a Lua table to the JSON syntax for a query:
+
+```lua
+local pgmoon = require("pgmoon")
+local pg = pgmoon.new(auth)
+pg:connect()
+
+local encode_json = require("pgmoon.json").encode_json
+local my_tbl = {hello = "world"}
+pg:query("insert into some_table (some_json_col) values(" .. encode_json(my_tbl) .. ")")
 ```
 
 ## Converting `NULL`s
@@ -253,13 +271,14 @@ OpenResty you might want to reuse `ngx.null`.
 
 # Contact
 
-Author: Leaf Corcoran (leafo) ([@moonscript](http://twitter.com/moonscript))  
-Email: leafot@gmail.com  
-Homepage: <http://leafo.net>  
+Author: Leaf Corcoran (leafo) ([@moonscript](http://twitter.com/moonscript))
+Email: leafot@gmail.com
+Homepage: <http://leafo.net>
 
 
 # Changelog
 
+* 1.4.0 — 2016-02-18 — Add support for decoding jsonb, add a json serializer (@thibaultCha)
 * 1.3.0 — 2016-02-11 — Fix bug parsing a string that looked like a number failed, add support for using in ngx when in init context (@thibaultCha), add cleartext password auth, fix warning with md5 auth
 * 1.2.0 — 2015-07-10 — Add support for PostgreSQL Arrays
 * 1.1.1 — 2014-08-12 — Fix a bug with md5 auth
